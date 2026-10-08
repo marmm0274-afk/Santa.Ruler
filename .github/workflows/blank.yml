@@ -1,4 +1,4 @@
-name: Build Santa APK
+name: Santa APK Build
 
 on:
   workflow_dispatch:
@@ -13,23 +13,52 @@ jobs:
 
       - name: Unzip Santa project
         run: |
-          mkdir project
+          mkdir -p project
           unzip -q "Santa-GitHub-Ready-1.zip" -d project
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Gradle
+        run: |
+          wget -q https://services.gradle.org/distributions/gradle-8.7-bin.zip
+          unzip -q gradle-8.7-bin.zip -d /tmp
+          echo "/tmp/gradle-8.7/bin" >> $GITHUB_PATH
 
       - name: Find Gradle project
         run: |
-          GRADLEW=$(find project -name gradlew -type f | head -n 1)
-          if [ -z "$GRADLEW" ]; then
-            echo "gradlew not found"
-            exit 1
+          SETTINGS=$(find project -type f \( -name "settings.gradle" -o -name "settings.gradle.kts" \) | head -n 1)
+
+          if [ -n "$SETTINGS" ]; then
+            PROJECT_DIR=$(dirname "$SETTINGS")
+          else
+            BUILD_FILE=$(find project -type f \( -name "build.gradle" -o -name "build.gradle.kts" \) | head -n 1)
+
+            if [ -z "$BUILD_FILE" ]; then
+              echo "Gradle project not found"
+              find project -maxdepth 4 -type f | head -100
+              exit 1
+            fi
+
+            PROJECT_DIR=$(dirname "$BUILD_FILE")
           fi
-          chmod +x "$GRADLEW"
-          echo "GRADLEW=$GRADLEW" >> $GITHUB_ENV
+
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "Found project at: $PROJECT_DIR"
+
+      - name: Create Gradle wrapper
+        run: |
+          cd "$PROJECT_DIR"
+          gradle wrapper --gradle-version 8.7
 
       - name: Build APK
         run: |
-          cd "$(dirname "$GRADLEW")"
-          ./gradlew assembleDebug
+          cd "$PROJECT_DIR"
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -37,3 +66,5 @@ jobs:
           name: Santa-APK
           path: |
             project/**/build/outputs/apk/**/*.apk
+            project/**/build/outputs/apk/*.apk
+          if-no-files-found: error
