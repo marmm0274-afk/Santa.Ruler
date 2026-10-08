@@ -14,7 +14,7 @@ jobs:
       - name: Unzip Santa project
         run: |
           mkdir project
-          unzip -q "Santa-final (1).zip" -d project
+          unzip -q "Santa-GitHub-Ready-1.zip" -d project
 
       - name: Find Gradle project
         run: |
